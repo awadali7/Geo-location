@@ -1,26 +1,54 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+	--background: #ffffff;
+	--foreground: #171717;
+
+	--color-primary: #0077b6;
+	--color-primary-foreground: #ffffff;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--font-sans: var(--font-geist-sans);
+	--font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+	:root {
+		--background: #0a0a0a;
+		--foreground: #ededed;
+	}
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+	background: var(--background);
+	color: var(--foreground);
+	font-family: var(--font-geist-sans);
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+::-webkit-scrollbar {
+	display: none;
+}
+@layer utilities {
+	.bg-primary-gradient {
+		background-image: linear-gradient(90deg, #243972 0%, #cd2125 100%);
+	}
+	.hover\:bg-primary-gradient-dark:hover {
+		background-image: linear-gradient(90deg, #1f355f 0%, #bf1d21 100%);
+	}
+}
+
+.screen-height {
+	height: calc(100vh - 64px);
+}
+
+.mapboxgl-ctrl-logo {
+	display: none !important;
+}
+.mapboxgl-ctrl-attrib-inner {
+	display: none !important;
 }
