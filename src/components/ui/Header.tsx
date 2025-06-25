@@ -7,6 +7,7 @@ import { FaSignOutAlt, FaUserCircle, FaUserEdit } from "react-icons/fa";
 import { AnimatePresence, motion } from "framer-motion";
 import { getFirstTwoLetters } from "@/utils/funtions";
 import { FaMapLocationDot } from "react-icons/fa6";
+import Link from "next/link";
 
 const Header: FC = () => {
 	const router = useRouter();
@@ -47,7 +48,7 @@ const Header: FC = () => {
 	};
 
 	const handleProfile = () => {
-		router.push("/profile/update");
+		router.push("/profile");
 	};
 
 	const initials = userName ? (
@@ -57,20 +58,23 @@ const Header: FC = () => {
 	);
 
 	return (
-		<header className="flex h-16 items-center justify-between px-6 bg-white border-b border-gray-200">
+		<header className="flex h-16 items-center sticky z-50 top-0 justify-between px-6 bg-white border-b border-gray-200">
 			{/* Logo & Title */}
 			<div className="flex items-center gap-2">
 				<FaMapLocationDot className="text-2xl text-primary" />
-				<span className="text-xl font-semibold text-gray-800">
+				<Link
+					href="/"
+					className="text-xl cursor-pointer font-semibold text-gray-800"
+				>
 					Tracker.io
-				</span>
+				</Link>
 			</div>
 
 			{/* Avatar & Dropdown */}
 			<div className="relative" ref={dropdownRef}>
 				<button
 					onClick={() => setDropdownOpen((prev) => !prev)}
-					className="flex items-center justify-center w-10 cursor-pointer border border-gray-200 h-10 bg-gray-100 rounded-lg text-gray-700 hover:bg-gray-200 transition-colors"
+					className="flex items-center justify-center w-10 cursor-pointer border border-gray-200 h-10 bg-gray-100 rounded-full text-gray-700 hover:bg-gray-200 transition-colors"
 				>
 					{initials}
 				</button>
@@ -82,12 +86,12 @@ const Header: FC = () => {
 							animate={{ opacity: 1, scale: 1, y: 0 }}
 							exit={{ opacity: 0, scale: 0.95, y: -10 }}
 							transition={{ duration: 0.2 }}
-							className="absolute right-0 mt-3 w-44 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50 origin-top-right"
+							className="absolute right-0 mt-3 w-44 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-[9999] origin-top-right"
 						>
 							{/* Arrow */}
 							<div className="absolute top-0 right-4 -mt-2 h-2 w-2 bg-white rotate-45 border-l border-t border-gray-200"></div>
 
-							<ul className="divide-y divide-gray-100">
+							<ul className="divide-y z-[9999] divide-gray-100">
 								<li>
 									<button
 										onClick={handleProfile}

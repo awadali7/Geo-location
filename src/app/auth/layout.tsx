@@ -11,11 +11,11 @@ export default function RootLayout({
 				{/* LEFT SIDE */}
 				{children}
 				{/* RIGHT SIDE */}
-				<div className="bg-muted relative  lg:block">
+				<div className="bg-muted hidden relative  lg:block">
 					<Image
 						src={SfoLogo}
-						width={500}
-						height={500}
+						width={400}
+						height={400}
 						alt="Image"
 						className="
 					  absolute top-1/2 left-1/2

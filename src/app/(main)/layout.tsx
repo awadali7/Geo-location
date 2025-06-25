@@ -1,5 +1,6 @@
 import Header from "@/components/ui/Header";
 import Sidebar from "@/components/ui/Sidebar";
+import InitUser from "@/lib/InitUser";
 import type { Metadata } from "next";
 export const metadata: Metadata = {
 	title: "Create Next App",
@@ -12,12 +13,15 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<main className="relative">
+		<div className="flex flex-col relative h-screen">
 			<Header />
-			<div className="flex screen-height">
+			<div className="flex flex-1 overflow-hidden">
 				<Sidebar />
-				{children}
+				<div className="flex-1 overflow-y-auto ">
+					<InitUser />
+					{children}
+				</div>
 			</div>
-		</main>
+		</div>
 	);
 }

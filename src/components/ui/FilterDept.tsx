@@ -17,17 +17,17 @@ export default function FilterDept({
 	return (
 		<select
 			className="
-        bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2
+        bg-gray-50 border border-gray-300 text-gray-900 rounded-full p-2
         transition-all duration-200
         hover:border-gray-400
-        focus:outline-none focus:shadow-md focus:ring-2 focus:ring-indigo-600
+        focus:outline-none focus:shadow-md text-sm focus:ring-1 focus:ring-indigo-600
         cursor-pointer
       "
 			value={value}
 			onChange={(e) => onChange(Number(e.target.value))}
 		>
 			{options.map((dept) => (
-				<option key={dept.id} value={dept.id}>
+				<option className="text-sm" key={dept.id} value={dept.id}>
 					{dept.dName}
 				</option>
 			))}

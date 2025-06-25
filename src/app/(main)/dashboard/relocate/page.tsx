@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { z } from "zod";
-import { getCookie } from "cookies-next";
 import { toZuluISOString } from "@/utils/funtions";
 import { toast } from "sonner";
+import { useUserStore } from "@/lib/store";
 
 // --- Zod schema for validation ---
 const relocateSchema = z
@@ -79,6 +79,14 @@ const fieldVariants = {
 const RelocatePage: FC = () => {
 	const router = useRouter();
 
+	// Safe parse UserData
+	const userData = useUserStore((s) => s.userData);
+	const syncUserData = useUserStore((s) => s.syncUserData);
+
+	const homeUnitID = userData?.homeUnitId;
+	const createdBy = userData?.employee_name;
+	const empId = userData?.user_id;
+
 	// form state
 	const [unit, setUnit] = useState<string>("");
 	const [status, setStatus] = useState<"1" | "2">("1");
@@ -106,7 +114,7 @@ const RelocatePage: FC = () => {
 			});
 	}, []);
 
-	// flatten to single CombinedUnit list
+	// flatten to CombinedUnit list
 	const allUnits: CombinedUnit[] = useMemo(
 		() =>
 			sitesData.flatMap((loc) =>
@@ -118,7 +126,19 @@ const RelocatePage: FC = () => {
 		[sitesData]
 	);
 
-	// dropdown UI state
+	// select home unit by default
+	useEffect(() => {
+		if (allUnits.length && homeUnitID) {
+			const matched = allUnits.find(
+				(u) => u.unitId.toString() === homeUnitID.toString()
+			);
+			if (matched) {
+				setUnit(matched.unitId.toString());
+			}
+		}
+	}, [allUnits, homeUnitID]);
+
+	// dropdown state
 	const [dropdownOpen, setDropdownOpen] = useState(false);
 	const [searchTerm, setSearchTerm] = useState("");
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -145,10 +165,10 @@ const RelocatePage: FC = () => {
 				(u) =>
 					u.unitName
 						.toLowerCase()
-						.includes(searchTerm.toLowerCase()) ||
+						.includes(searchTerm.trim().toLowerCase()) ||
 					u.locationName
 						.toLowerCase()
-						.includes(searchTerm.toLowerCase())
+						.includes(searchTerm.trim().toLowerCase())
 			),
 		[allUnits, searchTerm]
 	);
@@ -157,20 +177,12 @@ const RelocatePage: FC = () => {
 		() => allUnits.find((u) => u.unitId.toString() === unit),
 		[allUnits, unit]
 	);
+
 	const movementDate: string = new Date().toISOString();
-
-	const createdBy =
-		getCookie("UserData") &&
-		JSON.parse(getCookie("UserData") as string)?.employee_name;
-
-	const empId =
-		getCookie("UserData") &&
-		JSON.parse(getCookie("UserData") as string)?.user_id;
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 
-		// Zod validation
 		const result = relocateSchema.safeParse({
 			unit,
 			status,
@@ -189,10 +201,8 @@ const RelocatePage: FC = () => {
 			return;
 		}
 
-		// clear old errors
 		setErrors({});
 
-		// build payload
 		let payload = {};
 		if (result.data.status === "1") {
 			payload = {
@@ -223,14 +233,12 @@ const RelocatePage: FC = () => {
 				method: "POST",
 				body: JSON.stringify(payload),
 			});
-			// if (res.success) {
-			// 	toast.success("Employee relocated successfully!");
-			// 	router.push("/dashboard");
-			// } else {
-			// 	toast.error("Failed to relocate employee.");
-			// }
 
 			if (res.type === 1) {
+				syncUserData({
+					homeUnitId: Number(result.data.unit),
+				});
+
 				toast.success("Employee relocated successfully!");
 				router.push("/dashboard");
 			} else {
@@ -326,7 +334,7 @@ const RelocatePage: FC = () => {
 											}
 										}}
 										placeholder="Search unit or location..."
-										className="w-full px-3 py-2 border  border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600"
+										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600"
 									/>
 								</div>
 								<ul className="max-h-60 overflow-auto">
@@ -345,7 +353,7 @@ const RelocatePage: FC = () => {
 													}}
 													className="w-full text-left px-4 py-2 hover:bg-gray-100 transition"
 												>
-													<div className="flex items-center cursor-pointer  justify-between">
+													<div className="flex items-center justify-between">
 														<span className="font-medium text-gray-800">
 															{u.unitName}
 														</span>
@@ -377,12 +385,8 @@ const RelocatePage: FC = () => {
 						onChange={(e) => setStatus(e.target.value as "1" | "2")}
 						className="w-full h-10 px-3 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-600"
 					>
-						<option className="cursor-pointer" value="1">
-							Movement
-						</option>
-						<option className="cursor-pointer" value="2">
-							Short Leave
-						</option>
+						<option value="1">Movement</option>
+						<option value="2">Short Leave</option>
 					</select>
 				</div>
 

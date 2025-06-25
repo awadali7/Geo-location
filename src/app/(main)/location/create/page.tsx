@@ -1,201 +1,274 @@
-// app/locations/create/page.tsx
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { FiSave } from "react-icons/fi";
+import { apiFetch } from "@/lib/api";
+import { toast } from "sonner";
+import { getCookie } from "cookies-next";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import { motion, AnimatePresence } from "framer-motion";
-import { FiSearch } from "react-icons/fi";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN!;
 
-interface Suggestion {
-	id: string;
-	place_name: string;
-	center: [number, number];
-}
+export default function AddLocationPage() {
+	const router = useRouter();
 
-export default function CreateLocationPage() {
-	const [query, setQuery] = useState("");
-	const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-	const [coords, setCoords] = useState<[number, number] | null>(null);
-	const [landmark, setLandmark] = useState<string>("");
-	const mapContainer = useRef<HTMLDivElement>(null);
-	const mapRef = useRef<mapboxgl.Map | null>(null);
-	const markerRef = useRef<mapboxgl.Marker | null>(null);
+	const [locationName, setLocationName] = useState("");
+	const [locationCode, setLocationCode] = useState("");
+	const [lat, setLat] = useState(0);
+	const [lgt, setLgt] = useState(0);
+	const [rad, setRad] = useState(500);
+	const [loading, setLoading] = useState(false);
 
-	// Initialize the map once
+	const mapContainer = useRef<HTMLDivElement | null>(null);
+	const map = useRef<mapboxgl.Map | null>(null);
+	const marker = useRef<mapboxgl.Marker | null>(null);
+
 	useEffect(() => {
-		if (!mapContainer.current) return;
-		const map = new mapboxgl.Map({
-			container: mapContainer.current,
-			style: "mapbox://styles/mapbox/streets-v11",
-			center: [77.5946, 12.9716], // default to Bengaluru
-			zoom: 10,
+		if (map.current) return;
+
+		map.current = new mapboxgl.Map({
+			container: mapContainer.current!,
+			style: "mapbox://styles/mapbox/satellite-streets-v12",
+			center: [lgt || 76.3, lat || 10.0],
+			zoom: 8,
 		});
-		map.addControl(new mapboxgl.NavigationControl(), "top-right");
-		map.on("click", (e) => {
-			const lngLat = [e.lngLat.lng, e.lngLat.lat] as [number, number];
-			handleSelectCoords(lngLat);
+
+		map.current.on("click", (e) => {
+			const { lng, lat } = e.lngLat;
+			setLgt(lng);
+			setLat(lat);
+
+			const el = document.createElement("div");
+			el.className = "custom-marker";
+			el.style.backgroundImage = "url('/location-icon.svg')";
+			el.style.backgroundSize = "contain";
+			el.style.width = "30px";
+			el.style.height = "30px";
+
+			if (marker.current) {
+				marker.current.setLngLat([lng, lat]);
+			} else {
+				marker.current = new mapboxgl.Marker({ element: el })
+					.setLngLat([lng, lat])
+					.addTo(map.current!);
+			}
+
+			map.current?.flyTo({
+				center: [lng, lat],
+				zoom: 15,
+				speed: 1.2,
+			});
+
+			drawCircle([lng, lat], rad);
 		});
-		mapRef.current = map;
-		return () => {
-			map.remove();
-		};
 	}, []);
 
-	// Fly and place marker when coords change
 	useEffect(() => {
-		if (!coords || !mapRef.current) return;
-		const map = mapRef.current;
-		map.flyTo({ center: coords, zoom: 14, speed: 1.2 });
-		if (markerRef.current) {
-			markerRef.current.setLngLat(coords);
+		if (lat && lgt && map.current) {
+			drawCircle([lgt, lat], rad);
+		}
+	}, [rad]);
+
+	const drawCircle = (center: [number, number], radiusMeters: number) => {
+		if (!map.current) return;
+
+		const circleGeoJSON = createGeoJSONCircle(center, radiusMeters);
+
+		if (map.current.getSource("radius-circle")) {
+			(
+				map.current.getSource("radius-circle") as mapboxgl.GeoJSONSource
+			)?.setData(circleGeoJSON);
 		} else {
-			markerRef.current = new mapboxgl.Marker({ color: "#d00" })
-				.setLngLat(coords!)
-				.addTo(map);
-		}
-		// reverse geocode for nearby landmarks
-		fetch(
-			`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?types=poi,landmark&limit=5&access_token=${mapboxgl.accessToken}`
-		)
-			.then((res) => res.json())
-			.then((data) => {
-				setSuggestions(data.features as Suggestion[]);
+			map.current?.addSource("radius-circle", {
+				type: "geojson",
+				data: circleGeoJSON,
 			});
-	}, [coords]);
 
-	// Forward geocode on query change
-	useEffect(() => {
-		if (!query) {
-			setSuggestions([]);
-			return;
+			map.current?.addLayer({
+				id: "radius-circle-layer",
+				type: "fill",
+				source: "radius-circle",
+				paint: {
+					"fill-color": "#1D4ED8",
+					"fill-opacity": 0.3,
+				},
+			});
 		}
-		const timer = setTimeout(() => {
-			fetch(
-				`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-					query
-				)}.json?autocomplete=true&limit=5&access_token=${
-					mapboxgl.accessToken
-				}`
-			)
-				.then((res) => res.json())
-				.then((data) => {
-					setSuggestions(data.features as Suggestion[]);
-				});
-		}, 300);
-		return () => clearTimeout(timer);
-	}, [query]);
-
-	const handleSelectCoords = (lngLat: [number, number]) => {
-		setCoords(lngLat);
-		setLandmark("");
-		setQuery("");
 	};
 
-	const handleSelectSuggestion = (s: Suggestion) => {
-		setCoords(s.center);
-		setLandmark(s.place_name);
-		setSuggestions([]);
-		setQuery(s.place_name);
+	const createGeoJSONCircle = (
+		center: [number, number],
+		radiusInMeters: number,
+		points = 64
+	): GeoJSON.Feature<GeoJSON.Polygon> => {
+		const coords = {
+			latitude: center[1],
+			longitude: center[0],
+		};
+
+		const km = radiusInMeters / 1000;
+		const ret: [number, number][] = [];
+		const distanceX =
+			km / (111.32 * Math.cos((coords.latitude * Math.PI) / 180));
+		const distanceY = km / 110.574;
+
+		for (let i = 0; i < points; i++) {
+			const theta = (i / points) * (2 * Math.PI);
+			const x = distanceX * Math.cos(theta);
+			const y = distanceY * Math.sin(theta);
+			ret.push([coords.longitude + x, coords.latitude + y]);
+		}
+		ret.push(ret[0]);
+
+		return {
+			type: "Feature",
+			properties: {}, // ✅ Fixed: required by Mapbox types
+			geometry: {
+				type: "Polygon",
+				coordinates: [ret],
+			},
+		};
+	};
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setLoading(true);
+
+		const createdOn = new Date().toISOString();
+		let createdBy = "";
+		try {
+			const raw = getCookie("UserData");
+			if (typeof raw === "string") {
+				const data = JSON.parse(raw);
+				createdBy = data?.employee_name || "";
+			}
+		} catch {}
+
+		try {
+			const res = await apiFetch<{ type: number; message: string }>(
+				"/RMv2/add-update-location/",
+				{
+					method: "POST",
+					body: JSON.stringify({
+						id: 0,
+						locationName,
+						locationCode,
+						lat,
+						lgt,
+						rad,
+						createdOn,
+						createdBy,
+						modifiedOn: createdOn,
+						modifiedBy: createdBy,
+						sfomfrUnits: [],
+					}),
+				}
+			);
+
+			if (res.type === 1) {
+				toast.success("Location saved successfully!");
+				router.push("/location");
+			} else {
+				toast.error(res.message || "Failed to save location");
+			}
+		} catch (err) {
+			console.error("API error:", err);
+			toast.error("An unexpected error occurred");
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	return (
-		<div className="flex h-full w-full gap-6 p-6 bg-gray-50">
-			{/* Control Panel */}
-			<div className="w-1/3 flex flex-col gap-6">
-				<div className="flex flex-col gap-4">
-					<label className="font-medium text-gray-700">
-						Search Location
-					</label>
-					<div className="relative">
-						<FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+		<div className="flex flex-col lg:flex-row p-4 sm:p-6 md:p-10 gap-6">
+			<motion.div
+				initial={{ opacity: 0, y: 20 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.4 }}
+				className="w-full lg:w-1/2 bg-white rounded-xl border border-gray-300 shadow-sm p-6"
+			>
+				<h1 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4">
+					Add New Location
+				</h1>
+				<form onSubmit={handleSubmit} className="space-y-6">
+					<div className="flex flex-col">
+						<label
+							htmlFor="locationName"
+							className="mb-2 font-medium text-gray-700"
+						>
+							Location Name
+						</label>
 						<input
+							id="locationName"
 							type="text"
-							placeholder="Type address or landmark..."
-							value={query}
-							onChange={(e) => setQuery(e.target.value)}
-							className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 transition"
+							value={locationName}
+							onChange={(e) => setLocationName(e.target.value)}
+							required
+							placeholder="e.g. Chennai HQ"
+							className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-green-500"
 						/>
 					</div>
-					<AnimatePresence>
-						{suggestions?.length > 0 && (
-							<motion.ul
-								initial={{ opacity: 0, y: -4 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: -4 }}
-								className="max-h-48 overflow-auto bg-white rounded-lg shadow-lg divide-y divide-gray-200"
-							>
-								{suggestions?.map((s) => (
-									<li
-										key={s.id}
-										onClick={() =>
-											handleSelectSuggestion(s)
-										}
-										className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-									>
-										{s.place_name}
-									</li>
-								))}
-							</motion.ul>
-						)}
-					</AnimatePresence>
-				</div>
 
-				<button
-					onClick={() => {
-						navigator.geolocation.getCurrentPosition((pos) => {
-							handleSelectCoords([
-								pos.coords.longitude,
-								pos.coords.latitude,
-							]);
-						});
-					}}
-					className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-				>
-					Use My Location
-				</button>
+					<div className="flex flex-col">
+						<label
+							htmlFor="locationCode"
+							className="mb-2 font-medium text-gray-700"
+						>
+							Location Code
+						</label>
+						<input
+							id="locationCode"
+							type="text"
+							value={locationCode}
+							onChange={(e) => setLocationCode(e.target.value)}
+							required
+							placeholder="e.g. CHN-HQ"
+							className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-green-500"
+						/>
+					</div>
 
-				<div className="flex flex-col gap-1">
-					<label className="font-medium text-gray-700">
-						Selected Landmark
-					</label>
-					<input
-						type="text"
-						value={landmark}
-						readOnly
-						placeholder="—"
-						className="w-full px-4 py-2 bg-gray-100 rounded-lg border border-gray-300"
-					/>
-				</div>
+					<div className="flex flex-col">
+						<label
+							htmlFor="rad"
+							className="mb-2 font-medium text-gray-700"
+						>
+							Radius (meters)
+						</label>
+						<input
+							id="rad"
+							type="number"
+							value={rad}
+							onChange={(e) => setRad(Number(e.target.value))}
+							placeholder="e.g. 500"
+							className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-green-500"
+						/>
+					</div>
 
-				<div className="flex flex-col gap-1">
-					<label className="font-medium text-gray-700">
-						Coordinates
-					</label>
-					<input
-						type="text"
-						readOnly
-						value={
-							coords
-								? `${coords[1].toFixed(6)}, ${coords[0].toFixed(
-										6
-								  )}`
-								: ""
-						}
-						placeholder="—"
-						className="w-full px-4 py-2 bg-gray-100 rounded-lg border border-gray-300"
-					/>
-				</div>
-			</div>
+					<div className="flex justify-between text-sm mt-2">
+						<span>Latitude: {lat.toFixed(6)}</span>
+						<span>Longitude: {lgt.toFixed(6)}</span>
+					</div>
 
-			{/* Map Panel */}
+					<motion.button
+						type="submit"
+						whileHover={{ scale: 1.02 }}
+						whileTap={{ scale: 0.98 }}
+						disabled={loading}
+						className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-700 text-white font-medium rounded-xl hover:bg-green-800 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50 transition"
+					>
+						<FiSave className="text-lg" />
+						{loading ? "Saving..." : "Save Location"}
+					</motion.button>
+				</form>
+			</motion.div>
+
 			<motion.div
-				initial={{ opacity: 0 }}
-				animate={{ opacity: 1 }}
-				transition={{ duration: 0.5 }}
-				className="flex-1 rounded-lg overflow-hidden shadow-lg"
+				initial={{ opacity: 0, y: 20 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.4 }}
+				className="w-full lg:w-1/2 h-[400px] lg:h-auto rounded-xl overflow-hidden border border-gray-300"
 			>
 				<div ref={mapContainer} className="w-full h-full" />
 			</motion.div>

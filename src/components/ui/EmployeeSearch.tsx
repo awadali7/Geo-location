@@ -52,7 +52,7 @@ export default function EmployeeSearch({
 					type="text"
 					placeholder="Search employees"
 					className="
-            w-full h-10 rounded-lg bg-gray-50 pl-10  border border-gray-300 pr-4 text-gray-700 placeholder-gray-500
+            w-full h-10 rounded-full bg-gray-50 pl-10  text-sm border border-gray-300 pr-4 text-gray-700 placeholder-gray-500
             focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-shadow
           "
 					value={searchTerm}

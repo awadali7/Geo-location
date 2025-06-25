@@ -8,6 +8,7 @@ import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { setCookie } from "cookies-next";
 import { useRouter } from "next/navigation";
+import { UserData, useUserStore } from "@/lib/store";
 
 // ------------------------
 // Zod Schema
@@ -20,7 +21,7 @@ const loginSchema = z.object({
 interface LoginResponse {
 	type: number;
 	messages?: string[];
-	data?: string;
+	data?: UserData;
 	error?: string;
 }
 
@@ -33,13 +34,14 @@ const LoginPage: FC = () => {
 	>({});
 
 	const router = useRouter();
+	const setUserData = useUserStore((state) => state.setUserData);
 
 	const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		setLoading(true);
 		setErrors({});
 
-		// 1) validate
+		// 1) Validate form data
 		const result = loginSchema.safeParse({ username, password });
 		if (!result.success) {
 			const fieldErrors: typeof errors = {};
@@ -52,29 +54,32 @@ const LoginPage: FC = () => {
 			return;
 		}
 
-		// 2) build query-string URL
+		// 2) Build query-string
 		const qs = `?username=${encodeURIComponent(
 			username
 		)}&password=${encodeURIComponent(password)}`;
+
 		try {
-			// hits: http://sfosrv02:86/api/v2/auth-user?username=…&password=…
+			// 3) Call API
 			const res = await apiFetch<LoginResponse>(`/v2/auth-user${qs}`, {
 				method: "POST",
 			});
 
-			// strip any timestamp prefix
 			const raw = res.messages?.[0] || res.error || "";
 			const msg = raw.replace(
 				/^\d{2}-\d{2}-\d{4}\s\d{2}:\d{2}:\d{2}\s:\s*/,
 				""
 			);
 
-			if (res.type === 1) {
-				setCookie("UserData", res.data);
+			if (res.type === 1 && res.data) {
+				// ✅ Store as string in cookie
+				setCookie("UserData", JSON.stringify(res.data));
+
+				// ✅ Store in Zustand as object
+				setUserData(res.data);
 
 				toast.success("Login successful");
 				router.push("/dashboard");
-				// TODO: navigate to dashboard
 			} else {
 				toast.error(msg || "Login failed");
 			}

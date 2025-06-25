@@ -10,6 +10,11 @@ import { motion, AnimatePresence } from "framer-motion";
 // ------------------------
 // Type Definitions
 // ------------------------
+interface Unit {
+	unitId: string;
+	unitName: string;
+}
+
 interface Location {
 	id: string;
 	locationName: string;
@@ -18,6 +23,7 @@ interface Location {
 	createdOn: string;
 	modifiedBy: string | null;
 	modifiedOn: string | null;
+	sfomfrUnits: Unit[];
 }
 
 interface Department {
@@ -25,10 +31,9 @@ interface Department {
 	dName: string;
 }
 
-// Backend expects all fields as strings
 interface RegistrationPayload {
 	emailId: string;
-	empCode: string; // renamed back to empCode
+	empCode: string;
 	deptId: string;
 	homeUnit: string;
 	role: "User";
@@ -41,9 +46,6 @@ interface RegistrationResponse {
 	error?: string;
 }
 
-// ------------------------
-// Zod Schema for validation only
-// ------------------------
 const signUpSchema = z.object({
 	email: z.string().email("Please enter a valid email address"),
 	empCode: z.string().regex(/^\d+$/, "Employee code must be a number"),
@@ -55,19 +57,21 @@ enum Role {
 	User = "User",
 }
 
-// ------------------------
-// Component
-// ------------------------
 const SignUpPage: FC = () => {
 	const [email, setEmail] = useState<string>("");
 	const [empCode, setEmpCode] = useState<string>("");
 	const [selectedDept, setSelectedDept] = useState<string>("");
+	const [selectedLocationId, setSelectedLocationId] = useState<string>("");
 	const [selectedUnit, setSelectedUnit] = useState<string>("");
+
 	const [departments, setDepartments] = useState<Department[]>([]);
-	const [units, setUnits] = useState<Location[]>([]);
+	const [locations, setLocations] = useState<Location[]>([]);
+	const [filteredUnits, setFilteredUnits] = useState<Unit[]>([]);
+
 	const [deptLoading, setDeptLoading] = useState<boolean>(true);
-	const [unitLoading, setUnitLoading] = useState<boolean>(true);
+	const [locationLoading, setLocationLoading] = useState<boolean>(true);
 	const [submitLoading, setSubmitLoading] = useState<boolean>(false);
+
 	const [errors, setErrors] = useState<
 		Partial<Record<"email" | "empCode" | "deptId" | "homeUnit", string>>
 	>({});
@@ -80,15 +84,15 @@ const SignUpPage: FC = () => {
 			),
 		[departments]
 	);
-	const uniqueUnits = useMemo(
+	const uniqueLocations = useMemo(
 		() =>
-			units.filter(
-				(u, i, arr) => arr.findIndex((x) => x.id === u.id) === i
+			locations.filter(
+				(l, i, arr) => arr.findIndex((x) => x.id === l.id) === i
 			),
-		[units]
+		[locations]
 	);
 
-	// Fetch data
+	// Fetch Departments
 	useEffect(() => {
 		const fetchDepartments = async () => {
 			setDeptLoading(true);
@@ -107,31 +111,51 @@ const SignUpPage: FC = () => {
 		fetchDepartments();
 	}, []);
 
+	// Fetch Locations
 	useEffect(() => {
-		const fetchUnits = async () => {
-			setUnitLoading(true);
+		const fetchLocations = async () => {
+			setLocationLoading(true);
 			try {
 				const res = await apiFetch<{ data: Location[] }>(
 					"/RMv2/get-all-locations",
 					{ method: "GET" }
 				);
-				if (Array.isArray(res.data)) setUnits(res.data);
+				if (Array.isArray(res.data)) setLocations(res.data);
 			} catch (e) {
 				console.error(e);
 			} finally {
-				setUnitLoading(false);
+				setLocationLoading(false);
 			}
 		};
-		fetchUnits();
+		fetchLocations();
 	}, []);
 
-	// Handle form submit
+	// When location changes, update units under it
+	useEffect(() => {
+		if (!selectedLocationId) {
+			setFilteredUnits([]);
+			setSelectedUnit("");
+			return;
+		}
+
+		const selectedLocation = locations.find((loc) => {
+			return loc.id == selectedLocationId;
+		});
+
+		if (selectedLocation) {
+			setFilteredUnits(selectedLocation.sfomfrUnits || []);
+		} else {
+			setFilteredUnits([]);
+		}
+		setSelectedUnit("");
+	}, [selectedLocationId, locations]);
+
+	// Handle submit
 	const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		setSubmitLoading(true);
 		setErrors({});
 
-		// Validate inputs
 		const result = signUpSchema.safeParse({
 			email,
 			empCode,
@@ -149,12 +173,9 @@ const SignUpPage: FC = () => {
 			return;
 		}
 
-		// Prepare payload as strings
-		// Prepare payload with correct backend field names
-		// Prepare payload with correct backend field names
 		const payload: RegistrationPayload = {
 			emailId: email,
-			empCode: empCode, // use empCode field as backend expects
+			empCode: empCode,
 			deptId: selectedDept,
 			homeUnit: selectedUnit,
 			role: Role.User,
@@ -179,6 +200,7 @@ const SignUpPage: FC = () => {
 				setEmail("");
 				setEmpCode("");
 				setSelectedDept("");
+				setSelectedLocationId("");
 				setSelectedUnit("");
 			} else {
 				toast.error(msg || "Registration failed");
@@ -308,13 +330,14 @@ const SignUpPage: FC = () => {
 								disabled={deptLoading}
 								className="w-full h-9 px-3 py-1 rounded-md bg-gray-50 border border-gray-300 text-gray-900 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
 							>
-								<option value="">
+								<option className="text-sm " value="">
 									{deptLoading
 										? "Loading..."
 										: "Select department"}
 								</option>
 								{uniqueDepartments.map((d) => (
 									<option
+										className="text-sm "
 										key={`${d.id}-${d.dName}`}
 										value={d.id}
 									>
@@ -336,6 +359,39 @@ const SignUpPage: FC = () => {
 								)}
 							</AnimatePresence>
 						</div>
+						{/* Location */}
+						<div className="flex flex-col">
+							<label
+								htmlFor="location"
+								className="text-sm font-semibold mb-1"
+							>
+								Location <span className="text-red-600">*</span>
+							</label>
+							<select
+								id="location"
+								value={selectedLocationId}
+								onChange={(e) =>
+									setSelectedLocationId(e.target.value)
+								}
+								disabled={locationLoading}
+								className="w-full h-9 px-3 py-1  rounded-md bg-gray-50 border border-gray-300 text-gray-900 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
+							>
+								<option className="text-sm " value="">
+									{locationLoading
+										? "Loading..."
+										: "Select location"}
+								</option>
+								{uniqueLocations.map((loc) => (
+									<option
+										className="text-sm "
+										key={loc.id}
+										value={loc.id}
+									>
+										{loc.locationName}
+									</option>
+								))}
+							</select>
+						</div>
 						{/* Unit */}
 						<div className="flex flex-col">
 							<label
@@ -350,18 +406,21 @@ const SignUpPage: FC = () => {
 								onChange={(e) =>
 									setSelectedUnit(e.target.value)
 								}
-								disabled={unitLoading}
+								disabled={!filteredUnits.length}
 								className="w-full h-9 px-3 py-1 rounded-md bg-gray-50 border border-gray-300 text-gray-900 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
 							>
-								<option value="">
-									{unitLoading ? "Loading..." : "Select unit"}
+								<option className="text-sm " value="">
+									{!filteredUnits.length
+										? "Select location first"
+										: "Select unit"}
 								</option>
-								{uniqueUnits.map((u) => (
+								{filteredUnits.map((u) => (
 									<option
-										key={`${u.id}-${u.locationCode}`}
-										value={u.id}
+										className="text-sm "
+										key={u.unitId}
+										value={u.unitId}
 									>
-										{u.locationName}
+										{u.unitName}
 									</option>
 								))}
 							</select>
