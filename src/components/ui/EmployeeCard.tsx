@@ -22,6 +22,8 @@ export default function EmployeeCard({ employee }: EmployeeCardProps) {
 	const isPresent = employee.status === "present";
 	const isMovement = employee.status === "movement";
 
+	console.log(employee.status);
+
 	// color styles for each mode badge
 	const modeStyles: Record<Employee["mode"], string> = {
 		"On Site": "bg-green-100 text-green-800",

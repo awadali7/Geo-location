@@ -176,7 +176,12 @@ export default function DashboardPage() {
 			email: e.email,
 			designation: e.units.createdOn,
 			mode: "On Site",
-			status: e.status === 0 ? "present" : "leave",
+			status:
+				e.status === 0
+					? "present"
+					: e.status === 1
+					? "movement"
+					: "leave",
 			department: dashboardData.department.dName,
 			location: e.units.sfoLocations.locationName,
 		}));
