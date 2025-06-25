@@ -216,7 +216,7 @@ export default function DashboardPage() {
 	));
 
 	return (
-		<div className="flex flex-col w-full gap-6 p-6">
+		<div className="flex flex-col w-full gap-6 p-6 max-md:mb-20">
 			<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6">
 				<StatCard
 					title="Employees"
